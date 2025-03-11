@@ -253,6 +253,53 @@ impl SigCtx {
         }
     }
 
+    pub fn sign_raw_with_k(
+        &self,
+        digest: &[u8],
+        sk: &BigUint,
+        k: &BigUint,
+    ) -> Sm2Result<Signature> {
+        let curve = &self.curve;
+        // Get the value "e", which is the hash of message and ID, EC parameters and public key
+
+        let e = BigUint::from_bytes_be(digest);
+
+        // two while loops
+        loop {
+            // k = rand()
+            // (x_1, y_1) = g^kg
+
+            let p_1 = curve.g_mul(&k)?;
+            let (x_1, _) = curve.to_affine(&p_1)?;
+            let x_1 = x_1.to_biguint();
+
+            // r = e + x_1
+            let r = (&e + x_1) % curve.get_n();
+            if r == BigUint::zero() || &r + k == *curve.get_n() {
+                continue;
+            }
+
+            // s = (1 + sk)^-1 * (k - r * sk)
+            let s1 = curve.inv_n(&(sk + BigUint::one()))?;
+
+            let mut s2_1 = &r * sk;
+            if s2_1 < *k {
+                s2_1 += curve.get_n();
+            }
+            let mut s2 = s2_1 - k;
+            s2 %= curve.get_n();
+            let s2 = curve.get_n() - s2;
+
+            let s = (s1 * s2) % curve.get_n();
+
+            if s != BigUint::zero() {
+                // Output the signature (r, s)
+                return Ok(Signature { r, s });
+            }
+            return Err(Sm2Error::ZeroSig);
+        }
+    }
+
     pub fn verify(&self, msg: &[u8], pk: &Point, sig: &Signature) -> Sm2Result<bool> {
         //Get hash value
         let digest = self.hash("1234567812345678", pk, msg)?;
