@@ -67,7 +67,7 @@ impl From<Sm2Error> for &str {
         }
     }
 }
-
+impl std::error::Error for Sm2Error {}
 impl Display for Sm2Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let err_msg = match self {
